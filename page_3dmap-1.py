@@ -79,6 +79,23 @@ layer_grid = pdk.Layer( # 稍微改個名字避免混淆
     pickable=True # 加上 pickable 才能顯示 tooltip
 )
 
+map_style = st.selectbox(
+    "選擇底圖樣式：",
+    [
+        "mapbox://styles/mapbox/light-v11",
+        "mapbox://styles/mapbox/dark-v11",
+        "mapbox://styles/mapbox/satellite-v9",
+        "mapbox://styles/mapbox/outdoors-v12"
+    ]
+)
+r = pdk.Deck(
+    layers=[layer_hexagon],
+    initial_view_state=view_state_hexagon,
+    map_style=map_style,
+    tooltip={"text": "密度: {elevationValue}"}
+)
+
+
 # --- 3. 設定視角 (View) ---
 view_state_grid = pdk.ViewState( # 稍微改個名字避免混淆
     latitude=base_lat, longitude=base_lon, zoom=10, pitch=50
