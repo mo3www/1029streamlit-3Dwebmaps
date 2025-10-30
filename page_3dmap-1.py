@@ -6,9 +6,9 @@ import pydeck as pdk
 st.title("Pydeck 3D 地圖 (向量 - 密度圖)")
 
 # 0. 檢查 Mapbox 金鑰是否存在於 Secrets 中 (名稱應為 MAPBOX_API_KEY)
-if "MAPBOX_API_KEY" not in st.secrets:
-    st.error("Mapbox API Key (名稱需為 MAPBOX_API_KEY) 未設定！請在雲端 Secrets 中設定。")
-    st.stop()
+# if "MAPBOX_API_KEY" not in st.secrets:
+#     st.error("Mapbox API Key (名稱需為 MAPBOX_API_KEY) 未設定！請在雲端 Secrets 中設定。")
+#     st.stop()
 
 # --- 1. 生成範例資料 (向量) ---
 data = pd.DataFrame({
@@ -78,23 +78,6 @@ layer_grid = pdk.Layer( # 稍微改個名字避免混淆
     extruded=True,
     pickable=True # 加上 pickable 才能顯示 tooltip
 )
-
-map_style = st.selectbox(
-    "選擇底圖樣式：",
-    [
-        "mapbox://styles/mapbox/light-v11",
-        "mapbox://styles/mapbox/dark-v11",
-        "mapbox://styles/mapbox/satellite-v9",
-        "mapbox://styles/mapbox/outdoors-v12"
-    ]
-)
-r = pdk.Deck(
-    layers=[layer_hexagon],
-    initial_view_state=view_state_hexagon,
-    map_style=map_style,
-    tooltip={"text": "密度: {elevationValue}"}
-)
-
 
 # --- 3. 設定視角 (View) ---
 view_state_grid = pdk.ViewState( # 稍微改個名字避免混淆

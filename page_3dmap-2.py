@@ -25,6 +25,14 @@ fig = px.scatter_geo(
     # *** 關鍵：使用 "orthographic" 投影法來建立 3D 地球儀 ***
     projection="orthographic"
 )
+
+fig.update_geos(
+    showland=True, landcolor="lightgreen",
+    showocean=True, oceancolor="lightblue",
+    showrivers=True, rivercolor="blue",
+    showcountries=True, countrycolor="gray",
+    lataxis_showgrid=True, lonaxis_showgrid=True
+)
 # "orthographic" 投影會將地球渲染成一個從太空中看到的球體，
 # 從而產生類似 3D 地球儀的視覺效果。
 # 其他常見投影如 "natural earth", "mercator" 等通常是 2D 平面地圖。
