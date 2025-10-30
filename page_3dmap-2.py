@@ -2,12 +2,15 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
-
+import rasterio
+import numpy as np
 
 st.title("Plotly 3D 地圖 (向量 - 地球儀)")
+st.write("pop 與 lifeExp 關係，點的顏色越深 lifeExp 越高")
 
 # --- 1. 載入 Plotly 內建的範例資料 ---
 df = px.data.gapminder().query("year == 2007")
+
 # px.data 提供了幾個內建的範例資料集，方便使用者練習或展示。
 # gapminder() 是其中一個內建函式，它會載入著名的 Gapminder 資料集。
 # 這個資料集包含了世界各國多年的平均壽命 (lifeExp)、人均 GDP (gdpPercap) 和人口 (pop) 等數據。
@@ -18,9 +21,10 @@ df = px.data.gapminder().query("year == 2007")
 fig = px.scatter_geo(
     df,
     locations="iso_alpha",  # 國家代碼
-    color="continent",      # 依據大陸洲別上色
+    color="lifeExp",      # 依據平勳壽命上色
     hover_name="country",   # 滑鼠懸停時顯示國家名稱
     size="pop",             # 點的大小代表人口數
+    color_continuous_scale="Turbo",
 
     # *** 關鍵：使用 "orthographic" 投影法來建立 3D 地球儀 ***
     projection="orthographic"
@@ -45,57 +49,83 @@ st.plotly_chart(fig, use_container_width=True)
 # 或是一個展開器 (expander) 的寬度)。
 
 st.title("Plotly 3D 地圖 (網格 - DEM 表面)")
+st.write("資料：不分幅_澎湖20公尺網格數值地形模型")
 
-# --- 1. 讀取範例 DEM 資料 ---
-# Plotly 內建的 "volcano" (火山) DEM 數據 (儲存為 CSV)
-# 這是一個 2D 陣列 (Grid)，每個格子的值就是海拔
-z_data = pd.read_csv("https://raw.githubusercontent.com/plotly/datasets/master/api_docs/mt_bruno_elevation.csv")
+# --- 1. 讀取 DEM 資料 (GeoTIFF) ---
+file_path = "phDEM_20m_121.tif"  # 檢查檔案的正確路徑
+with rasterio.open(file_path) as src:
+    # 讀取高程資料，這會是一個 2D 陣列 (高程值)
+    dem_data = src.read(1)
 
-# --- 2. 建立 3D Surface 圖 ---
-# 建立一個 Plotly 的 Figure 物件，它是所有圖表元素的容器
+    height, width = dem_data.shape
+    x = np.linspace(0, width - 1, width)  # 修正網格範圍
+    y = np.linspace(0, height - 1, height)
+
+    # 使用 meshgrid 生成 2D 網格
+    x, y = np.meshgrid(x, y)
+
+    # 確認 NoData 值
+    nodata_value = src.nodata
+    # print("NoData 值:", nodata_value)
+
+    if nodata_value is not None:
+        dem_data = np.where(dem_data == nodata_value, np.nan, dem_data)
+    else:
+        print("DEM 資料沒有設定 NoData 值")
+
+    # 將 NaN 值替換為 0 或其他值
+    dem_data = np.nan_to_num(dem_data, nan=0)
+
+    # 查看數據範圍，確認 NoData 值已經處理
+    # print("清理後高程數據範圍：", np.nanmin(dem_data), "到", np.nanmax(dem_data))
+
+# --- 2. 降採樣 DEM 數據 ---
+# 假設我們要將數據降採樣 2 倍，將每 2x2 像素合併為一個像素
+factor = 4  # 降採樣因子
+
+# 這裡使用步長選擇來降採樣
+dem_data_resampled = dem_data[::factor, ::factor]
+x_resampled = x[::factor]
+y_resampled = y[::factor]
+
+# 打印降採樣後的數據範圍
+print("降採樣後的高程數據範圍：", np.nanmin(dem_data_resampled), "到", np.nanmax(dem_data_resampled))
+
+# --- 3. 建立 3D Surface 圖 ---
+custom_colorscale = [
+    [0.0, "lightblue"],    # 最小值顯示為淺藍色
+    [0.25, "lightgreen"],   # 40% 時顯示為淺綠色
+    [0.5, "lightyellow"],  # 60% 時顯示為淺黃色
+    [0.75, "lightsalmon"],  # 80% 時顯示為淺橙色
+    [1.0, "lightcoral"]    # 最大值顯示為淡紅色
+]
+
 fig = go.Figure(
-    # data 參數接收一個包含所有 "trace" (圖形軌跡) 的列表。
-    # 每個 trace 定義了一組數據以及如何繪製它。
     data=[
-        # 建立一個 Surface (曲面) trace
         go.Surface(
-            # *** 關鍵參數：z ***
-            # z 參數需要一個 2D 陣列 (或列表的列表)，代表在 X-Y 平面上每個點的高度值。
-            # z_data.values 會提取 pandas DataFrame 底層的 NumPy 2D 陣列。
-            # Plotly 會根據這個 2D 陣列的結構來繪製 3D 曲面。
-            z=z_data.values,
-
-            # colorscale 參數指定用於根據 z 值 (高度) 對曲面進行著色的顏色映射方案。
-            # "Viridis" 是 Plotly 提供的一個常用且視覺效果良好的顏色漸層。
-            # 高度值較低和較高的點會有不同的顏色。
-            colorscale="Viridis"
+            z=dem_data_resampled,
+            x=x_resampled,
+            y=y_resampled,
+            colorscale=custom_colorscale
         )
-    ] # data 列表結束
+    ]
 )
 
-# --- 3. 調整 3D 視角和外觀 ---
-# 使用 update_layout 方法來修改圖表的整體佈局和外觀設定
+# --- 4. 調整 3D 視角和外觀 ---
+z_max = 100
+
 fig.update_layout(
-    # 設定圖表的標題文字
-    title="Mt. Bruno 火山 3D 地形圖 (可旋轉)",
-
-    # 設定圖表的寬度和高度 (單位：像素)
-    width=800,
+    title="降採樣後的 DEM 3D 地形圖 (可旋轉)",
+    width=800 ,
     height=700,
-
-    # scene 參數是一個字典，用於配置 3D 圖表的場景 (座標軸、攝影機視角等)
     scene=dict(
-        # 設定 X, Y, Z 座標軸的標籤文字
         xaxis_title='經度 (X)',
         yaxis_title='緯度 (Y)',
-        zaxis_title='海拔 (Z)'
-        # 可以在 scene 字典中加入更多參數來控制攝影機初始位置、座標軸範圍等
-    )
+        zaxis_title='海拔 (Z)',
+        zaxis=dict(range=[np.nanmin(dem_data_resampled), z_max])  # 設置 z 軸範圍
+    ),
+    margin=dict(l=0, r=0, b=0, t=0)
 )
 
-# 這段程式碼執行後，變數 `fig` 將包含一個設定好的 3D Surface Plotly 圖表物件。
-# 你可以接著使用 fig.show() 或 st.plotly_chart(fig) 將其顯示出來。
-# 這個圖表通常是互動式的，允許使用者用滑鼠旋轉、縮放和平移 3D 視角。
-
-# --- 4. 在 Streamlit 中顯示 ---
+# --- 5. 在 Streamlit 中顯示 ---
 st.plotly_chart(fig)
