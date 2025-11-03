@@ -5,7 +5,7 @@ import pydeck as pdk
 st.title("Pydeck 3D 地圖：台北市行政區資料統計")
 
 # --- 1. 讀取台北市行政區 shapefile ---
-taipei = gpd.read_file("台北市區界圖/G97_A_CADIST_P.shp")
+taipei = gpd.read_file("台北市區界圖_20220915/G97_A_CADIST_P.shp")
 
 # 確保為 WGS84 經緯度座標
 if taipei.crs and taipei.crs.to_epsg() != 4326:
