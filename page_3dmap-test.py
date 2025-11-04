@@ -2,7 +2,8 @@ import streamlit as st
 import geopandas as gpd
 import pydeck as pdk
 
-st.title("Pydeck 3D 地圖：台北市行政區資料統計")
+st.title("Pydeck 3D 地圖：台北市各區停車格數量")
+st.write("因檔案過大，資料經採樣處理過，非實際數字")
 
 # --- 1. 讀取台北市行政區 shapefile ---
 taipei = gpd.read_file("臺北市區界圖_20220915/G97_A_CADIST_P.shp")
