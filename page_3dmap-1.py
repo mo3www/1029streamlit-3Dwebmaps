@@ -3,6 +3,7 @@ import geopandas as gpd
 import pandas as pd
 import numpy as np
 import pydeck as pdk
+import scipy
 from scipy.ndimage import gaussian_filter
 
 st.title("Pydeck 3D 地圖：台北市各區停車格數量")
