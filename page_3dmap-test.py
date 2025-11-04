@@ -5,14 +5,14 @@ import pydeck as pdk
 st.title("Pydeck 3D 地圖：台北市行政區資料統計")
 
 # --- 1. 讀取台北市行政區 shapefile ---
-taipei = gpd.read_file("台北市區界圖_20220915/G97_A_CADIST_P.shp")
+taipei = gpd.read_file("臺北市區界圖_20220915/G97_A_CADIST_P.shp")
 
 # 確保為 WGS84 經緯度座標
 if taipei.crs and taipei.crs.to_epsg() != 4326:
     taipei = taipei.to_crs(epsg=4326)
 
 # --- 2. 讀取第二個 GeoDataFrame ---
-data = gpd.read_file("park01/park01_202510091630.shp")
+data = gpd.read_file("park01-clean/park01_202510091630_clean.shp")
 
 if data.crs and data.crs.to_epsg() != 4326:
     data = data.to_crs(epsg=4326)
@@ -44,11 +44,11 @@ layer_boundary = pdk.Layer(
     taipei_count.__geo_interface__,
     stroked=True,
     filled=True,
-    get_fill_color= [255,255,255,50],
+    get_fill_color= [255,255,255,100],
     get_line_color=[0, 0, 0, 255],
     pickable=True,
     extruded=True,
-    elevation_scale=0.1, 
+    elevation_scale=0.3, 
 )
 
 # --- 9. 建立柱狀圖圖層 (顏色可依資料數量漸層) ---
