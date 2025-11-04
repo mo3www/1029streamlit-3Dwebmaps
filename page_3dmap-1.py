@@ -1,6 +1,9 @@
 import streamlit as st
 import geopandas as gpd
+import pandas as pd
+import numpy as np
 import pydeck as pdk
+from scipy.ndimage import gaussian_filter
 
 st.title("Pydeck 3D 地圖：台北市各區停車格數量")
 st.write("因檔案過大，資料經採樣處理過，非實際數字")
@@ -75,8 +78,8 @@ layer_columns = pdk.Layer(
 
 # --- 10. 設定視角 ---
 view_state = pdk.ViewState(
-    latitude=25.0478,
-    longitude=121.5170,
+    latitude=25.0330,
+    longitude=121.5654,
     zoom=11.5,
     pitch=45,
 )
@@ -94,45 +97,100 @@ st.pydeck_chart(r)
 #          第二個地圖：模擬 DEM
 # ===============================================
 
-st.title("Pydeck 3D 地圖 (網格 - DEM 模擬)")
+st.title("台北市 停車格密度 DEM（平滑 3D GridLayer）")
+st.write("生成網格格點，計算停車格密度，並使用高斯平滑模擬連續 DEM")
 
-# --- 1. 模擬 DEM 網格資料 ---
-x, y = np.meshgrid(np.linspace(-1, 1, 50), np.linspace(-1, 1, 50))
-z = np.exp(-(x**2 + y**2) * 2) * 1000
+# --- 2. 讀取停車格資料 ---
+parking = gpd.read_file("park01-clean/park01_202510091630_clean.shp")
+if parking.crs and parking.crs.to_epsg() != 4326:
+    parking = parking.to_crs(epsg=4326)
 
-data_dem_list = [] # 修正: 建立一個列表來收集字典
-base_lat, base_lon = 25.0, 121.5
-for i in range(50):
-    for j in range(50):
-        data_dem_list.append({ # 修正: 將字典附加到列表中
-            "lon": base_lon + x[i, j] * 0.1,
-            "lat": base_lat + y[i, j] * 0.1,
-            "elevation": z[i, j]
-        })
-df_dem = pd.DataFrame(data_dem_list) # 從列表創建 DataFrame
+# --- 3. 將非 Point 幾何轉成中心點 ---
+parking['geometry'] = parking.geometry.centroid
 
-# --- 2. 設定 Pydeck 圖層 (GridLayer) ---
-layer_grid = pdk.Layer( # 稍微改個名字避免混淆
-    'GridLayer',
-    data=df_dem,
+# --- 4. 生成網格 ---
+# 設定網格解析度
+grid_size = 50  # 可以調整格子數量，越大格子越小
+min_lon, min_lat, max_lon, max_lat = taipei.total_bounds
+
+x_edges = np.linspace(min_lon, max_lon, grid_size)
+y_edges = np.linspace(min_lat, max_lat, grid_size)
+
+# 5. 計算每個格子停車格數量
+H, xedges, yedges = np.histogram2d(
+    parking.geometry.x, parking.geometry.y,
+    bins=[x_edges, y_edges]
+)
+
+# --- 5. 高斯平滑 ---
+H_smooth = gaussian_filter(H.T, sigma=10)  # sigma 可調整平滑程度
+
+# --- 6. 生成網格點 DataFrame ---
+x_centers = (xedges[:-1] + xedges[1:]) / 2
+y_centers = (yedges[:-1] + yedges[1:]) / 2
+
+grid_data = []
+for i in range(len(x_centers)):
+    for j in range(len(y_centers)):
+        elev = float(H_smooth[j, i])
+        if elev > 1:  # 只保留有停車格的格子
+            grid_data.append({
+                "lon": x_centers[i],
+                "lat": y_centers[j],
+                "elevation": elev
+            })
+grid_df = pd.DataFrame(grid_data)
+
+# --- 7. PolygonLayer：行政區邊界 ---
+taipei['coordinates'] = taipei['geometry'].apply(lambda x: x.__geo_interface__['coordinates'])
+polygon_layer = pdk.Layer(
+    "PolygonLayer",
+    data=taipei,
+    get_polygon="coordinates",
+    get_fill_color=[0,0,0,0],  # 透明
+    get_line_color=[0,0,0],
+    line_width_min_pixels=2,
+    extruded=False,
+    pickable=True
+)
+
+# --- 8. GridLayer：平滑 DEM ---
+color_range = [
+    [255, 255, 204, 150],
+    [255, 237, 160, 150],
+    [254, 217, 118, 150],
+    [254, 178, 76, 150],
+    [253, 141, 60, 150],
+    [240, 59, 32, 150],
+    [189, 0, 38, 150]
+]
+
+grid_layer = pdk.Layer(
+    "GridLayer",
+    data=grid_df,
     get_position='[lon, lat]',
-    get_elevation_weight='elevation', # 使用 'elevation' 欄位當作高度
-    elevation_scale=1,
-    cell_size=2000,
+    get_elevation_weight='elevation',
+    elevation_scale=5,  # 可以調整高度放大倍率
+    cell_size=1000,      # 每格大小（單位公尺）
     extruded=True,
-    pickable=True # 加上 pickable 才能顯示 tooltip
+    pickable=True,
+    get_color_weight='elevation', 
+    color_range=color_range  
 )
 
-# --- 3. 設定視角 (View) ---
-view_state_grid = pdk.ViewState( # 稍微改個名字避免混淆
-    latitude=base_lat, longitude=base_lon, zoom=10, pitch=50
+# --- 9. 設定視角 ---
+view_state = pdk.ViewState(
+    latitude=25.0330,
+    longitude=121.5654,
+    zoom=11,
+    pitch=50
 )
 
-# --- 4. 組合並顯示 (第二個地圖) ---
-r_grid = pdk.Deck( # 稍微改個名字避免混淆
-    layers=[layer_grid],
-    initial_view_state=view_state_grid,
-    # mapbox_key=MAPBOX_KEY, # <--【修正點】移除這裡的 mapbox_key
-    tooltip={"text": "海拔高度: {elevationValue} 公尺"} # GridLayer 用 elevationValue
+# --- 10. 組合並顯示 ---
+r = pdk.Deck(
+    layers=[polygon_layer, grid_layer],
+    initial_view_state=view_state,
+    tooltip={"text": "停車格密度: {elevationValue}"}
 )
-st.pydeck_chart(r_grid)
+
+st.pydeck_chart(r)

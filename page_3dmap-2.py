@@ -52,7 +52,7 @@ st.title("Plotly 3D 地圖 (網格 - DEM 表面)")
 st.write("資料：不分幅_澎湖20公尺網格數值地形模型")
 
 # --- 1. 讀取 DEM 資料 (GeoTIFF) ---
-file_path = "phDEM_20m_121.tif"  # 檢查檔案的正確路徑
+file_path = "不分幅_全台及澎湖DEM/phDEM_20m_121.tif"  # 檢查檔案的正確路徑
 with rasterio.open(file_path) as src:
     # 讀取高程資料，這會是一個 2D 陣列 (高程值)
     dem_data = src.read(1)
